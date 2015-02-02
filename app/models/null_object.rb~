@@ -1,0 +1,5 @@
+class NullObject
+  # special method called when method is not found on an obj
+  def method_missing(*)
+  end
+end
