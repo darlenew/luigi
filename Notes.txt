@@ -1,0 +1,283 @@
+[20140131]
+# User Authentication in Rails
+
+# create new app called luigi
+$ rails new luigi
+
+# generate a model
+# g is shorthand for generate
+dwong-mac:luigi dwong$ rails g model User 
+      invoke  active_record
+      create    db/migrate/20150131185121_create_users.rb # tracks how tables in the database are defined
+      create    app/models/user.rb
+      invoke    test_unit
+      create      test/models/user_test.rb
+      create      test/fixtures/users.yml
+
+# this is the generated db/migrate/20150131185121_create_users.rb
+# you can edit this
+ class CreateUsers < ActiveRecord::Migration
+  def change
+    create_table :users do |t|
+
+      t.timestamps null: false
+    end
+  end
+end
+
+# modified
+# users is the name of the table. The t is like lambda x, anonymous function.
+class CreateUsers < ActiveRecord::Migration
+  def change
+    create_table :users do |t|
+      t.string :email
+      t.string :encrypted_password
+      t.timestamps # created_at,updated_at
+    end
+  end
+end
+
+
+- Divise plugin is a more secure rails user authentication library
+
+$ rake db:migrate
+
+# Look at app/models/user.rb that was generated after running the db migration
+class User < ActiveRecord::Base
+end
+
+# Desired usage
+user = User.new
+user.email = 'dwong@tango.me'
+user.password = 'mypassword' # want to be able to use the object like this but have it handle encryption and storing into encrypted_password field
+    .encrypted_password                  
+
+http://www.ruby-doc.org/stdlib-2.1.0/libdoc/digest/rdoc/Digest.html
+- use Digest::SHA256  # the '::' is the namespace operator, i.e. MyModule::MyClass.new 
+- Divise uses bcrypt
+
+
+# app/models/user.rb modified
+require 'digest'
+
+class User < ActiveRecord::Base
+  
+  # the equals sign makes password a property
+  def password=(password)
+    self.encrypted_password = encrypt(password)
+  end
+
+  def encrypt(password)
+    Digest::SHA256.hexdigest(password)
+  end
+
+end
+
+
+# create user record from the interpreter
+$ rails c
+2.2.0 :001 > user = User.new
+ => #<User id: nil, email: nil, encrypted_password: nil, created_at: nil, updated_at: nil> 
+2.2.0 :002 > user.email = 'darlene.wong@gmail.com'
+ => "darlene.wong@gmail.com" 
+2.2.0 :003 > user.password = 'password'
+ => "password" 
+2.2.0 :004 > user.save
+   (0.3ms)  begin transaction
+  SQL (0.6ms)  INSERT INTO "users" ("email", "encrypted_password", "created_at", "updated_at") VALUES (?, ?, ?, ?)  [["email", "darlene.wong@gmail.com"], ["encrypted_password", "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"], ["created_at", "2015-01-31 19:44:49.754254"], ["updated_at", "2015-01-31 19:44:49.754254"]]
+   (2.3ms)  commit transaction
+ => true 
+
+# send email message to user object
+2.2.0 :010 > user.send(:email)
+
+# take a look at the user record
+2.2.0 :005 > user
+ => #<User id: 1, email: "darlene.wong@gmail.com", encrypted_password: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a...", created_at: "2015-01-31 19:44:49", updated_at: "2015-01-31 19:44:49"> 
+
+
+# config/routes.rb (urls.py)
+# resources define mapping of routes to the controller
+Rails.application.routes.draw do
+  resources :users
+
+  # recognizes a particular computer as belonging to a particular user and store a cookie in the user's browser
+  # session is created when user logs in and destroyed when the user logs out
+  # limit the session to loggin in, logging out, and displaying login form
+  # create, destroy, and new are the session names
+  resource :session, only: [:create, :destroy, :new]
+end
+
+
+# generate routes to user resources
+$ rake routes 
+     Prefix Verb   URI Pattern               Controller#Action
+      users GET    /users(.:format)          users#index
+            POST   /users(.:format)          users#create
+   new_user GET    /users/new(.:format)      users#new
+  edit_user GET    /users/:id/edit(.:format) users#edit
+       user GET    /users/:id(.:format)      users#show
+            PATCH  /users/:id(.:format)      users#update
+            PUT    /users/:id(.:format)      users#update
+            DELETE /users/:id(.:format)      users#destroy
+    session POST   /session(.:format)        sessions#create
+new_session GET    /session/new(.:format)    sessions#new
+            DELETE /session(.:format)        sessions#destroy
+
+
+# create a new views directory
+$ mkdir app/views/sessions
+
+
+# app/views/sessions/new.html.erb (templates)
+<h2>HELLO!</h2>
+# headers come from app/views/layouts/application.html.erb
+
+# create the controller
+# app/controllers/sessions_controller.rb
+class SessionsController < ApplicationController
+
+  # show login form
+  def new
+  end
+
+  # login
+  def create
+  end
+
+  # logout
+  def destroy
+  end
+
+end
+
+
+
+
+# start the rails server
+$ rails s
+
+
+# browse to
+http://localhost:3000/session/new
+
+
+# add a form to the login template
+# new.html.erb
+<h2>HELLO!</h2>
+
+<div id="login_form">
+  <%= form_tag session_path, method: :post do %>s
+    <%= label_tag :email %>
+    <%= email_field_tag :email %>
+
+    <br />
+
+    <%= label_tag :password %>
+    <%= password_field_tag :password %>
+
+    <%= submit_tag "Login" %>
+  <% end %>
+</div>
+
+
+# add user lookup to ApplicationController, since everything inherits from ApplicationController
+# app/controllers/application_controller.rb
+class ApplicationController < ActionController::Base
+  # Prevent CSRF attacks by raising an exception.
+  # For APIs, you may want to use :null_session instead.
+  protect_from_forgery with: :exception
+
+  def current_user
+    User.first
+  end
+
+  helper_method :current_user
+end
+
+
+# replace default route in routes.rb
+root "application#home"
+
+
+# app/views/application/home.html.erb
+<h1>Hello! <%= current_user %> </h1>
+
+
+> "#{User.first} is cool"
+> User.find(1)
+
+# Every request loads a user object and the string representation displays the memory address.
+# The address changes every time you reload.
+#<User:0x007ffdc5a90ab8>
+
+
+# app/models/user.rb
+# modify the user's string representation from the memory address to email
+# to_s is a ruby built-in (like __str__)
+def to_s
+  email
+end
+
+
+# require that the user is logged in before showing them the home page
+
+
+# lookup the user by email
+> User.where(email: 'dwong@tango.me')
+> User.find_by_email('dwong@tango.me')
+
+# update the application controller so you are finding the actual current user, not just the first user in the db
+  def current_user
+    @current_user ||= User.find(session[:user_id])
+  end
+
+
+# logout of the session
+  def destroy
+    session[:user_id] = nil
+  end
+
+
+# route helper, same as rake routes
+http://localhost:3000/rails/info/routes
+
+
+# create app/models/null_object.rb
+# it is not an active model object, but rails automatically loads files from this dir
+
+
+> User.find_by_email('').verify_password('password')
+  User Load (0.2ms)  SELECT  "users".* FROM "users" WHERE "users"."email" = ? LIMIT 1  [["email", ""]]
+NoMethodError: undefined method `verify_password' for nil:NilClass
+  from (irb):22
+  from /Users/dwong/.rvm/gems/ruby-2.2.0/gems/railties-4.2.0/lib/rails/commands/console.rb:110:in `start'
+  [...]
+
+> User.ancestors
+ => [User(id: integer, email: string, encrypted_password: string, created_at: datetime, updated_at: datetime), User::GeneratedAssociationMethods, #<#<Class:0x007fb9d6352040>:0x007fb9d63521a8>, ActiveRecord::Base, GlobalID::Identification, ActiveRecord::Store, ActiveRecord::Serialization, ActiveModel::Serializers::Xml, 
+ [...]
+ PP::ObjectMixin, JSON::Ext::Generator::GeneratorMethods::Object, Kernel, BasicObject
+- if ancestry tree is traversed and BasicObject is reached, it will go back and look for method_missing() 
+
+# return the object itself if methods you try to access do not exist
+class NullObject
+  # special method called when method is not found on an obj
+  # can define what you want to happen if a method is not found
+  def method_missing(*)
+    self
+  end
+end
+
+2.2.0 :028 > n = NullObject.new
+ => #<NullObject:0x007fb9d672cda0> 
+2.2.0 :029 > n.address.city
+ => #<NullObject:0x007fb9d672cda0> 
+
+
+# Devise auth lib
+https://github.com/plataformatec/devise
+
+http://www.amazon.com/Practical-Object-Oriented-Design-Ruby-Addison-Wesley/dp/0321721330
+
+rails generate devise:install
